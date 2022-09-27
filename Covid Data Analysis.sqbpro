@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><sqlb_project><db path="/Users/sachclements/DATA SCIENCE STUDIES/Portfolio Projects/Covid_Data/Covid-Data-Analysis/Covid Data Analysis.db" readonly="0" foreign_keys="1" case_sensitive_like="0" temp_store="0" wal_autocheckpoint="1000" synchronous="2"/><attached/><window><main_tabs open="structure browser pragmas query" current="3"/></window><tab_structure><column_width id="0" width="300"/><column_width id="1" width="0"/><column_width id="2" width="100"/><column_width id="3" width="6897"/><column_width id="4" width="0"/><expanded_item id="0" parent="1"/><expanded_item id="1" parent="1"/><expanded_item id="2" parent="1"/><expanded_item id="3" parent="1"/></tab_structure><tab_browse><current_table name="4,18:mainCovidDeathsUpdated"/><default_encoding codec=""/><browse_table_settings/></tab_browse><tab_sql><sql name="SQL 1">- Check data has loaded correctly
+SELECT *
+FROM CovidDeathsUpdated
+LIMIT 5;
+
+SELECT location, date, total_cases, new_cases, total_deaths, population
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+ORDER BY 1,2;
+
+-- Explore Total Cases vs Total Deaths
+-- Shows likelihood of dying of covid in a specific country
+SELECT location, date, total_cases, total_deaths, ROUND((1.0*total_deaths/total_cases)*100,2) AS 'Death_Percentage'
+FROM CovidDeathsUpdated
+WHERE location = 'South Africa' 
+AND continent IS NOT NULL
+ORDER BY 1,2;
+
+-- Explore Total Cases vs population
+-- Shows the percentage of population that contracted covid
+SELECT location, date, total_cases, population, ROUND((1.0*total_cases/population)*100,2) AS 'Percentage_of_Population_Covid'
+FROM CovidDeathsUpdated
+WHERE location = 'South Africa' 
+ORDER BY 1,2;
+
+-- Explore countries with highest infection rate compared to population size
+SELECT location, population, MAX(total_cases) AS 'Highest_Infection_Count', MAX(ROUND((1.0*total_cases/population)*100,2)) AS 'Max_Percent_Population_Infected'
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+GROUP BY 1, 2
+ORDER BY 4 DESC;
+
+-- Explore countries with highest death count per population
+SELECT location, population, MAX(CAST(total_deaths AS int)) AS 'Highest_Death_Count'
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+GROUP BY 1
+ORDER BY 3 DESC;
+
+-- Explore continent/population group by death count per population
+SELECT location, population, MAX(CAST(total_deaths AS int)) AS 'Highest_Death_Count'
+FROM CovidDeathsUpdated
+WHERE continent IS NULL
+GROUP BY 1
+ORDER BY 3 DESC;
+
+-- Explore continent by death count per population
+SELECT continent, SUM(CAST(new_deaths AS int)) AS 'Total_Death_Count'
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+GROUP BY 1
+ORDER BY 2 DESC;
+
+-- Global level per day
+SELECT date, SUM(new_cases) AS 'Global_New_Cases', SUM(CAST(new_deaths AS int)) AS 'Global_Deaths', ROUND((SUM(new_deaths)*1.0)/SUM(new_cases)*100,2) AS 'Global_Death_Percentage'
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+GROUP BY 1
+ORDER BY 1,2;
+
+-- Global level overall
+SELECT SUM(new_cases) AS 'Global_Total_Cases', SUM(CAST(new_deaths AS int)) AS 'Global_Total_Deaths', ROUND((SUM(new_deaths)*1.0)/SUM(new_cases)*100,2) AS 'Global_Death_Percentage'
+FROM CovidDeathsUpdated
+WHERE continent IS NOT NULL
+ORDER BY 1,2;
+
+-- Check other table
+SELECT *
+FROM CovidVaccinationsUpdated
+LIMIT 5;
+
+-- Join the deaths and vaccinations tables
+-- Explore total population vs vaccinations
+SELECT CovidDeathsUpdated.continent, CovidDeathsUpdated.location, CovidDeathsUpdated.date, CovidDeathsUpdated.population, CovidVaccinationsUpdated.new_vaccinations,
+SUM(CovidVaccinationsUpdated.new_vaccinations) OVER (PARTITION BY CovidDeathsUpdated.location ORDER BY CovidDeathsUpdated.date) AS 'Running_Total_New_Vaccinations'
+FROM CovidDeathsUpdated 
+JOIN CovidVaccinationsUpdated
+ON CovidDeathsUpdated.location = CovidVaccinationsUpdated.location
+AND CovidDeathsUpdated.date = CovidVaccinationsUpdated.date
+WHERE CovidDeathsUpdated.continent IS NOT NULL
+AND CovidDeathsUpdated.location = 'South Africa'
+ORDER BY 2, 3;
+
+-- New vaccinations vs new cases in South Africa
+CREATE VIEW Vac_and_Deaths AS
+SELECT CovidDeathsUpdated.continent, CovidDeathsUpdated.location, CovidDeathsUpdated.date, CovidDeathsUpdated.population, CovidVaccinationsUpdated.new_vaccinations,
+SUM(CovidVaccinationsUpdated.new_vaccinations) OVER (PARTITION BY CovidDeathsUpdated.location ORDER BY CovidDeathsUpdated.date) AS 'Running_Total_New_Vaccinations', 
+CovidDeathsUpdated.new_cases, SUM(CovidDeathsUpdated.new_cases) OVER (PARTITION BY CovidDeathsUpdated.location ORDER BY CovidDeathsUpdated.date) AS 'Running_Total_New_Cases'
+FROM CovidDeathsUpdated 
+JOIN CovidVaccinationsUpdated
+ON CovidDeathsUpdated.location = CovidVaccinationsUpdated.location
+AND CovidDeathsUpdated.date = CovidVaccinationsUpdated.date
+WHERE CovidDeathsUpdated.continent IS NOT NULL
+AND CovidDeathsUpdated.location = 'South Africa'
+ORDER BY 2, 3;
+
+-- New vaccinations vs new cases - Global
+CREATE VIEW Vac_and_Deaths_Global AS
+SELECT CovidDeathsUpdated.continent, CovidDeathsUpdated.location, CovidDeathsUpdated.date, CovidDeathsUpdated.population, CovidVaccinationsUpdated.new_vaccinations,
+SUM(CovidVaccinationsUpdated.new_vaccinations) OVER (PARTITION BY CovidDeathsUpdated.location ORDER BY CovidDeathsUpdated.date) AS 'Running_Total_New_Vaccinations', 
+CovidDeathsUpdated.new_cases, SUM(CovidDeathsUpdated.new_cases) OVER (PARTITION BY CovidDeathsUpdated.location ORDER BY CovidDeathsUpdated.date) AS 'Running_Total_New_Cases'
+FROM CovidDeathsUpdated 
+JOIN CovidVaccinationsUpdated
+ON CovidDeathsUpdated.location = CovidVaccinationsUpdated.location
+AND CovidDeathsUpdated.date = CovidVaccinationsUpdated.date
+WHERE CovidDeathsUpdated.continent IS NOT NULL
+ORDER BY 2, 3;
+
+SELECT *
+FROM Vac_and_Deaths;
+
+-- Total vaccinations per Country
+SELECT CovidDeathsUpdated.continent, CovidDeathsUpdated.location, CovidDeathsUpdated.population, 
+MAX(CovidVaccinationsUpdated.people_vaccinated) AS 'Num_People_Vaccinated', ROUND(MAX(CovidVaccinationsUpdated.people_vaccinated)*1.0/CovidDeathsUpdated.population*100,2) AS 'Percent_Population_Vaccinated'
+FROM CovidDeathsUpdated
+JOIN CovidVaccinationsUpdated
+ON CovidDeathsUpdated.location = CovidVaccinationsUpdated.location
+AND CovidDeathsUpdated.date = CovidVaccinationsUpdated.date
+WHERE CovidDeathsUpdated.continent IS NOT NULL
+GROUP BY 2
+ORDER BY 5 DESC;
+</sql><current_tab id="0"/></tab_sql></sqlb_project>
